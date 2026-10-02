@@ -1,151 +1,339 @@
-# domain-scraper 🇩🇰
+# Domain Scraper
 
-Find **ledige korte domæner** (2–3 tegn) — primært `.dk` — så du kan købe dem før alle andre.
+A Python tool for finding short available domains, mainly made for `.dk` domains.
 
-Scanneren gennemgår alle ~49.000 kombinationer af 2–3 tegn under `.dk` på under et minut via DNS og bekræfter derefter kandidaterne én for én hos Punktum dk (WHOIS). De mest attraktive navne tjekkes først. Al fremdrift gemmes i en lokal database, så scanningen kan afbrydes og genoptages når som helst.
+The scanner checks 2-3 character domain combinations using DNS and then confirms possible available domains using Punktum.dk WHOIS.
 
-```
-[14:02:11] Scanner 17576 domæner
-  .dk: 6 autoritative navneservere
-  DNS 17576/17576  (786/s)  kandidater: 4851
-  DNS: 4851 kandidater, 0 fejl, 4851 skal bekræftes
-  WHOIS ~1.1s/opslag, est. 85 min (afbryd når som helst - fremskridt gemmes)
-  [1/4851] acy.dk                   LEDIG
-  [2/4851] ahy.dk                   LEDIG
-  ...
-```
+Progress is saved in a local SQLite database, so the scanner can be stopped and continued later without starting over.
 
-## Funktioner
+## Features
 
-- ⚡ **Hurtig DNS-scanning**: asynkron rå UDP direkte mod TLD'ens autoritative navneservere (`*.nic.dk`). Der er ingen cache og ingen mellemled, og svarene er i realtid.
-- ✅ **Bekræftelse**: kandidater tjekkes via WHOIS (eller Punktum DAS, hvis du er registrator), så du ikke får falske positive.
-- 🧠 **Smart rækkefølge**: korte, udtalbare navne med kun bogstaver tjekkes først (`ced.dk` før `c-9.dk`).
-- 💾 **Genoptagelse**: resultater gemmes i SQLite. Næste kørsel springer domæner over, der er tjekket inden for de sidste 24 timer.
-- 🔔 **Overvågning**: `--watch` scanner igen med faste mellemrum og sender besked (fil og/eller Discord/Slack-webhook), når et domæne bliver ledigt.
-- 🇩🇰 **Danske tegn**: `--charset dk` inkluderer `æ ø å ä ö ü é` (IDN/punycode håndteres automatisk).
-- 📦 **Ingen afhængigheder**: kun Pythons standardbibliotek.
+* Fast asynchronous DNS scanning
+* Direct queries to authoritative `.dk` nameservers
+* WHOIS confirmation through Punktum.dk
+* Punktum DAS support for registrars
+* Saves scan progress using SQLite
+* Resume previous scans
+* Checks better looking domains first
+* Supports custom character sets
+* Supports Danish characters such as `æ`, `ø` and `å`
+* Regex filtering
+* Watch mode for checking domains again automatically
+* Discord and Slack webhook notifications
+* Supports multiple TLDs
+* No external Python dependencies
 
-## Krav
+## Requirements
 
-- Python **3.10+**
-- Udgående UDP port 53 (DNS) og TCP port 43 (WHOIS)
+* Python 3.10+
+* UDP port 53 for DNS
+* TCP port 43 for WHOIS
 
-## Installation
+## Setup
+
+Clone the repository:
 
 ```bash
-git clone https://github.com/<dit-brugernavn>/domain-scraper.git
+git clone https://github.com/MrFawsDK/domain-scraper.git
 cd domain-scraper
+```
+
+Run the scanner:
+
+```bash
+python domain_scraper.py
+```
+
+Show all available options:
+
+```bash
 python domain_scraper.py --help
 ```
 
-## Brug
+## Usage
+
+Scan all 2-3 character `.dk` domains:
 
 ```bash
-# Alle 2-3 tegns .dk-domæner (a-z, 0-9, bindestreg)
 python domain_scraper.py
+```
 
-# Kun 3 bogstaver (ingen tal) - det mest interessante sæt
+Only scan 3 letter domains:
+
+```bash
 python domain_scraper.py --charset letters --lengths 3
+```
 
-# Inkl. æ, ø, å osv.
+Include Danish characters:
+
+```bash
 python domain_scraper.py --charset dk
+```
 
-# Kun navne der matcher et mønster, fx starter med "k"
+Only scan domains matching a pattern:
+
+```bash
 python domain_scraper.py --regex "k.."
+```
 
-# Bekræft kun de 200 bedste kandidater
+Only confirm the 200 best candidates:
+
+```bash
 python domain_scraper.py --limit 200
+```
 
-# Hurtigt overblik kun via DNS (ingen WHOIS - kan indeholde falske positive)
+Skip WHOIS confirmation and only use DNS:
+
+```bash
 python domain_scraper.py --no-confirm
+```
 
-# Vis alle kendte ledige domæner fra databasen
+List all known available domains:
+
+```bash
 python domain_scraper.py --list
+```
 
-# Overvåg hvert 30. minut og få besked i Discord
+Watch for available domains every 30 minutes:
+
+```bash
+python domain_scraper.py --charset letters --watch 30
+```
+
+Watch and send newly available domains to a Discord webhook:
+
+```bash
 python domain_scraper.py --charset letters --watch 30 --webhook "https://discord.com/api/webhooks/..."
+```
 
-# Andre endelser
+Scan multiple TLDs:
+
+```bash
 python domain_scraper.py --tlds dk,io,se
 ```
 
-### Alle indstillinger
+## Options
 
-| Flag | Standard | Beskrivelse |
-|---|---|---|
-| `--tlds` | `dk` | Kommasepareret liste af endelser |
-| `--lengths` | `2,3` | Længder der scannes |
-| `--charset` | `all` | `letters`, `digits`, `alnum`, `all` (+ `-`), `dk` (+ `æøåäöüé`) |
-| `--regex` | – | Kun navne der matcher (fuldt match) |
-| `--limit` | – | Bekræft kun de N bedste kandidater |
-| `--concurrency` | `256` | Samtidige DNS-opslag |
-| `--dns-rate` | `1000` | Max DNS-opslag pr. sekund |
-| `--whois-interval` | `1.05` | Sekunder mellem WHOIS-opslag |
-| `--max-age` | `24` | Timer før et bekræftet resultat tjekkes igen |
-| `--no-confirm` | – | Spring WHOIS over |
-| `--watch MIN` | – | Gentag hvert MIN minut |
-| `--webhook URL` | – | Discord/Slack-webhook til notifikationer |
-| `--db` | `domains.db` | SQLite-fil med tilstand |
-| `-o`, `--output` | `ledige_domaener.txt` | Nye ledige domæner tilføjes her |
-| `--list` | – | Vis kendte ledige og stop |
-| `-v`, `--verbose` | – | Vis også optagne domæner |
+| Option             | Default                 | Description                                      |
+| ------------------ | ----------------------- | ------------------------------------------------ |
+| `--tlds`           | `dk`                    | Comma separated list of TLDs                     |
+| `--lengths`        | `2,3`                   | Domain lengths to scan                           |
+| `--charset`        | `all`                   | Character set to use                             |
+| `--regex`          | -                       | Only scan domains matching the regex             |
+| `--limit`          | -                       | Only confirm the first N candidates              |
+| `--concurrency`    | `256`                   | Concurrent DNS lookups                           |
+| `--dns-rate`       | `1000`                  | Maximum DNS requests per second                  |
+| `--whois-interval` | `1.05`                  | Delay between WHOIS requests                     |
+| `--max-age`        | `24`                    | Hours before a confirmed result is checked again |
+| `--no-confirm`     | -                       | Skip WHOIS confirmation                          |
+| `--watch MIN`      | -                       | Repeat the scan every MIN minutes                |
+| `--webhook URL`    | -                       | Discord or Slack webhook for notifications       |
+| `--db`             | `domains.db`            | SQLite database file                             |
+| `-o`, `--output`   | `available_domains.txt` | File where available domains are saved           |
+| `--list`           | -                       | List known available domains and exit            |
+| `-v`, `--verbose`  | -                       | Also show registered domains                     |
 
-## Sådan virker det
+## How it works
 
+The scanner uses two steps to check if a domain is available.
+
+### DNS
+
+Domains are first checked directly against the authoritative nameservers for the TLD.
+
+For `.dk`, the scanner queries the `.nic.dk` nameservers directly instead of using a normal DNS resolver.
+
+If the domain exists in DNS, it can be marked as registered and skipped.
+
+If DNS returns `NXDOMAIN`, the domain is added as a possible available domain.
+
+DNS alone is not enough to know if a domain is actually available. A registered domain can exist without active nameservers, for example if it is suspended or still being configured.
+
+Because of this, all DNS candidates are confirmed using WHOIS.
+
+```text
+Generated domains
+      |
+      v
+     DNS
+      |
+      +-- Domain exists -> Registered
+      |
+      +-- NXDOMAIN -> Candidate
+                         |
+                         v
+                       WHOIS
+                         |
+                         +-- Registered
+                         |
+                         +-- Available
 ```
- generér navne ──► sortér efter værdi ──► DNS mod *.nic.dk ──► WHOIS / DAS ──► SQLite + notifikation
-   (~49k)                                   NXDOMAIN = kandidat    "No entries found" = LEDIG
+
+### WHOIS
+
+Candidates found through DNS are checked using Punktum.dk WHOIS.
+
+Punktum limits how quickly WHOIS can be queried, so the scanner waits between requests.
+
+By default:
+
+```text
+~1.05 seconds between WHOIS requests
 ```
 
-1. **DNS (trin 1)**: For hvert navn spørges TLD'ens egne navneservere direkte. Et *delegeret* domæne er altid registreret, så det udelukkes med det samme. Svarer serveren `NXDOMAIN`, er domænet en *kandidat*.
-   Navneserverne bruger Response Rate Limiting og svarer med tomme/afkortede pakker, hvis man spørger for hurtigt. Scanneren genkender dem og prøver igen, så resultatet er korrekt selv ved høj hastighed.
-2. **Bekræftelse (trin 2)**: Et domæne kan være registreret uden navneservere (fx suspenderet eller under oprettelse). Derfor tjekkes hver kandidat hos registret:
-   - **WHOIS** (`whois.punktum.dk`): offentligt og gratis, men begrænset til ca. 1 opslag pr. sekund. En adaptiv rate-limiter sænker farten automatisk, hvis serveren melder "Too many requests", og øger den igen bagefter.
-   - **DAS** (Punktum Domain Availability Service): uden rate-limit, men kræver registrator-adgang. Sæt miljøvariablerne nedenfor, så bruges den automatisk for `.dk`.
-3. **Tilstand**: alt gemmes i `domains.db`. Optagne domæner (delegeret i DNS) tjekkes ved hver kørsel, fordi det er gratis. WHOIS-resultater genbruges i `--max-age` timer.
+If the server starts returning rate limit errors, the scanner automatically slows down and continues.
 
-### Punktum DAS (valgfrit, kun registratorer)
+This makes the DNS part very fast, while WHOIS is used only for domains that actually need to be confirmed.
+
+## Punktum DAS
+
+If you have access to Punktum's Domain Availability Service, the scanner can use DAS instead of normal WHOIS.
+
+Set your credentials:
 
 ```bash
 export PUNKTUM_DAS_USER="DAS-1234"
 export PUNKTUM_DAS_PASSWORD="..."
+```
+
+Then run the scanner normally:
+
+```bash
 python domain_scraper.py
 ```
 
-Med DAS bekræftes kandidater parallelt i stedet for ~1 pr. sekund. Se [DAS-specifikationen](https://github.com/Punktum-dk/das-service-specification).
+DAS is automatically used for `.dk` domains when credentials are available.
 
-## Hvor lang tid tager det?
+Unlike the public WHOIS service, DAS allows candidates to be checked in parallel. This makes larger scans much faster.
 
-| Scanning | Domæner | DNS | Kandidater* | WHOIS-bekræftelse* |
-|---|---|---|---|---|
-| 2 tegn, `all` | 1.296 | ~2 s | ~1 | ~1 s |
-| 3 bogstaver (`letters`) | 17.576 | ~25 s | ~4.850 | ~1,5 t |
-| 2–3 tegn, `all` | ~49.000 | ~1 min | ~30.000 | ~9 t |
+## Database
 
-\* Målt oktober 2026. Tallene ændrer sig, når domæner registreres og slettes.
+Everything is stored in:
 
-Tip: Start med `--charset letters --lengths 3` og brug `--limit` for at få de bedste navne bekræftet først. Kør resten i baggrunden. Afbryd med `Ctrl+C`, og fortsæt senere med samme kommando.
+```text
+domains.db
+```
 
-## Resultater
+This includes the domain, DNS result, availability status and when it was last checked.
 
-- `ledige_domaener.txt`: nye ledige domæner tilføjes her, efterhånden som de bliver fundet
-- `domains.db`: SQLite med alle domæner (`domain`, `ascii`, `dns`, `status`, `checked_at`, `first_free`)
+The database contains:
+
+```text
+domain
+ascii
+dns
+status
+checked_at
+first_free
+```
+
+Confirmed results are reused for the amount of time set with `--max-age`.
+
+The default is:
+
+```text
+24 hours
+```
+
+This also means the scanner can be stopped with `Ctrl+C` and continued later without losing progress.
+
+You can list all known available domains with:
+
+```bash
+python domain_scraper.py --list
+```
+
+Or query the database directly:
 
 ```bash
 sqlite3 domains.db "SELECT domain FROM domains WHERE status='free' ORDER BY domain"
 ```
 
-## Køb af domæner
+## Example
 
-Scriptet *finder* ledige domæner, men køber dem ikke. Registrér dem hos en dansk registrator eller via [punktum.dk](https://www.punktum.dk). Tjek altid tilgængeligheden igen lige før køb.
+A scan of all 3 letter `.dk` domains can look like this:
 
-## Ansvarlig brug
+```text
+[14:02:11] Scanning 17576 domains
 
-- Punktum logger WHOIS-forespørgsler og kan blokere misbrug. Sæt ikke `--whois-interval` under ~1 sekund.
-- WHOIS-data må ifølge Punktums vilkår ikke bruges til markedsføring.
-- Hold `--dns-rate` på et fornuftigt niveau. Navneserverne er fælles infrastruktur.
-- Spekulation i domæner, der krænker andres varemærker, kan føre til at du mister domænet via [Klagenævnet for Domænenavne](https://www.domaeneklager.dk).
+.dk: 6 authoritative nameservers
 
-## Licens
+DNS 17576/17576  (786/s)  candidates: 4851
+
+DNS: 4851 candidates, 0 errors, 4851 need confirmation
+
+WHOIS ~1.1s/lookup, est. 85 min
+Ctrl+C anytime, progress is saved
+
+[1/4851] acy.dk                   AVAILABLE
+[2/4851] ahy.dk                   AVAILABLE
+...
+```
+
+## Performance
+
+| Scan           | Domains |     DNS | Candidates |      WHOIS |
+| -------------- | ------: | ------: | ---------: | ---------: |
+| 2 characters   |   1,296 |  ~2 sec |         ~1 |     ~1 sec |
+| 3 letters      |  17,576 | ~25 sec |     ~4,850 | ~1.5 hours |
+| 2-3 characters | ~49,000 |  ~1 min |    ~30,000 |   ~9 hours |
+
+These numbers were measured in October 2026.
+
+The amount of available domains changes over time, so the number of candidates and total WHOIS time will also change.
+
+For finding normal looking short domains, a good place to start is:
+
+```bash
+python domain_scraper.py --charset letters --lengths 3
+```
+
+You can also limit the amount of candidates that get confirmed:
+
+```bash
+python domain_scraper.py --charset letters --lengths 3 --limit 200
+```
+
+The scanner checks the better looking domains first, so using `--limit` can be useful if you only want to find a few good domains.
+
+## Output
+
+Newly found available domains are saved to:
+
+```text
+available_domains.txt
+```
+
+The full scan state is stored in:
+
+```text
+domains.db
+```
+
+You can stop the scanner at any time using `Ctrl+C`.
+
+Run the same command again later and it will continue using the saved results.
+
+## Domain Registration
+
+The scanner only checks if domains are available. It does not register or buy them.
+
+Domain availability can change at any time, so always check the domain again before registering it.
+
+For `.dk` domains, they can be registered through a `.dk` registrar.
+
+## Responsible Use
+
+Do not set `--whois-interval` too low.
+
+Punktum.dk rate limits WHOIS requests and excessive requests can result in temporary blocking.
+
+Keep `--dns-rate` at a reasonable level. Authoritative DNS servers are shared infrastructure.
+
+WHOIS information should also not be used for marketing or other purposes that violate Punktum's terms.
+
+Finding an available domain does not automatically mean you have the right to use it. Existing trademarks and domain name rules still apply.
+
+## License
 
 MIT
